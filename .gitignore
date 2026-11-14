@@ -1,0 +1,5 @@
+# Local test output and editor files.
+*.log
+/test-results/
+/.idea/
+/.vscode/
