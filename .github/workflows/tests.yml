@@ -1,0 +1,44 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    name: Core (${{ matrix.arch }})
+    runs-on: windows-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, x86]
+    env:
+      AHK_VERSION: '2.0.31'
+      AHK_SHA256: 'ca1a595aca4528755d8d4cd7fed23d497a37bd9a0b6892072612d68dee1bd00a'
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Download AutoHotkey
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'AutoHotkey.zip'
+          $destination = Join-Path $env:RUNNER_TEMP 'AutoHotkey'
+          $uri = "https://github.com/AutoHotkey/AutoHotkey/releases/download/v$($env:AHK_VERSION)/AutoHotkey_$($env:AHK_VERSION).zip"
+          Invoke-WebRequest -Uri $uri -OutFile $archive
+          if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne $env:AHK_SHA256) {
+            throw 'AutoHotkey archive checksum mismatch.'
+          }
+          Expand-Archive -LiteralPath $archive -DestinationPath $destination
+          $executable = if ('${{ matrix.arch }}' -eq 'x64') { 'AutoHotkey64.exe' } else { 'AutoHotkey32.exe' }
+          "AHK_PATH=$(Join-Path $destination $executable)" >> $env:GITHUB_ENV
+
+      - name: Validate scripts and run core tests
+        shell: pwsh
+        run: ./tests/Run-Tests.ps1 -AutoHotkeyPath $env:AHK_PATH
